@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biometric Verification</title>
+    <title>CYBERTECH:Biometric Fingerprinter</title>
     <!-- Подключаем пиксельный шрифт -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -235,19 +235,39 @@
             display: none !important;
         }
 
-        /* Стиль для сообщения о завершении и кнопки выхода */
-        #completion-screen {
+        /* Стиль для контейнера с сообщениями и кнопкой, размещенного внутри canvas-wrapper */
+        #completion-message-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 2;
         }
 
         #completion-message {
             font-size: 24px;
             color: #2ea043;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
+            /* Начальное мигание */
+            animation: blinker-standard 1s step-end infinite;
+        }
+        
+        /* Новая анимация для стандартного мигания */
+        @keyframes blinker-standard {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        /* Анимация для чередования текста */
+        .alternating-text {
+            animation: none !important;
         }
         
         #privilege-message {
@@ -305,6 +325,14 @@
                     
                     <!-- Кнопка старта -->
                     <button id="startButton">АКТИВАЦИЯ ПРОТОКОЛА</button>
+
+                    <!-- Экран завершения, теперь внутри canvas-wrapper -->
+                    <div id="completion-message-container" class="hidden">
+                        <p id="completion-message">АНАЛИЗ ЗАВЕРШЁН</p>
+                        <p id="privilege-message" class="hidden"></p>
+                        <button id="exitButton">ВЫЙТИ ИЗ СИМУЛЯЦИИ</button>
+                    </div>
+
                 </div>
                 
                 <!-- Мигающий текст -->
@@ -319,13 +347,6 @@
                 </div>
                 
                 <div id="feedback" class="feedback-message"></div>
-
-                <!-- Экран завершения -->
-                <div id="completion-screen" class="hidden">
-                    <p id="completion-message">АНАЛИЗ ЗАВЕРШЁН</p>
-                    <p id="privilege-message" class="hidden"></p>
-                    <button id="exitButton">ВЫЙТИ ИЗ СИМУЛЯЦИИ</button>
-                </div>
             </div>
         </div>
     </div>
@@ -337,7 +358,6 @@
         const bgCtx = bgCanvas.getContext('2d');
         const startButton = document.getElementById('startButton');
         const exitButton = document.getElementById('exitButton');
-        const completionScreen = document.getElementById('completion-screen');
         const canvasWrapper = document.querySelector('.canvas-wrapper');
         const timerAndAttempts = document.getElementById('timer-and-attempts');
         const gameContainer = document.querySelector('.game-container');
@@ -356,8 +376,12 @@
         const tipsContainer = document.getElementById('tips-container');
         const cybertechText = document.getElementById('cybertech-text');
         const secretMessage = document.getElementById('secret-message');
+        const completionMessageContainer = document.getElementById('completion-message-container');
+        const completionMessage = document.getElementById('completion-message');
         const privilegeMessage = document.getElementById('privilege-message');
+
         let tipsInterval;
+        let blinkingInterval;
         
         // Переменная для отслеживания нажатий на "CYBERTECH"
         let cybertechClickCount = 0;
@@ -387,7 +411,6 @@
                 { el: timerDisplay, text: `ВРЕМЯ: ${timeLeft} СЕК` },
                 { el: startButton, text: (currentLevel === 0 && !isCrazyMode) ? "АКТИВАЦИЯ ПРОТОКОЛА" : "ПРОДОЛЖИТЬ ТРАССИРОВКУ" },
                 { el: exitButton, text: "ВЫЙТИ ИЗ СИМУЛЯЦИИ" },
-                { el: completionScreen.querySelector('#completion-message'), text: "АНАЛИЗ ЗАВЕРШЁН" },
             ];
 
             elementsToUpdate.forEach(item => {
@@ -395,7 +418,35 @@
                     item.el.textContent = isReversed ? reverseString(item.text) : item.text;
                 }
             });
+            // Сообщение о завершении теперь управляется отдельной функцией, поэтому его здесь нет
         }
+        
+        // ------------------ ФУНКЦИИ ДЛЯ РАБОТЫ С ДВОИЧНЫМ КОДОМ ------------------
+        function textToBinary(text) {
+            return text.split('').map(char => {
+                const binary = char.charCodeAt(0).toString(2);
+                return '0'.repeat(16 - binary.length) + binary;
+            }).join(' ');
+        }
+        
+        // Функция для отображения двоичного кода с эффектом набора
+        function showBinaryMessage() {
+            const binaryMessage = textToBinary(welcomeMessage);
+            const binaryChars = binaryMessage.split('');
+            secretMessage.textContent = '';
+            
+            let index = 0;
+            const typeInterval = setInterval(() => {
+                if (index < binaryChars.length) {
+                    secretMessage.textContent += binaryChars[index];
+                    index++;
+                } else {
+                    clearInterval(typeInterval);
+                }
+            }, 50);
+        }
+        
+        // ------------------ КОНЕЦ ФУНКЦИЙ ДЛЯ РАБОТЫ С ДВОИЧНЫМ КОДОМ ------------------
         
         // Базовые размеры, на основе которых происходит масштабирование
         const baseWidth = 500;
@@ -434,13 +485,13 @@
         // Обновленные названия уровней
         const levelNames = ["МИЗИНЕЦ", "БЕЗЫМЯННЫЙ ПАЛЕЦ", "СРЕДНИЙ ПАЛЕЦ", "УКАЗАТЕЛЬНЫЙ ПАЛЕЦ", "БОЛЬШОЙ ПАЛЕЦ"];
         
-        let currentLevel = 0;
+        let currentLevel; // Переменная для текущего уровня
         let isTracing = false;
         let isGameOver = false;
         let isGameActive = false;
         let path, startNode, endNode, traceEndNode;
         let playerProgress = [];
-        let attemptsLeft = 3;
+        let attemptsLeft; // Количество оставшихся попыток
         let timeLeft = 0;
         let timerInterval;
 
@@ -758,7 +809,7 @@
             secretMessage.style.display = 'none';
             secretMessage.textContent = '';
             infoPanel.classList.add('hidden');
-            completionScreen.classList.add('hidden');
+            completionMessageContainer.classList.add('hidden');
             privilegeMessage.classList.add('hidden');
             timerAndAttempts.classList.remove('hidden'); 
             resizeGame(); 
@@ -897,6 +948,8 @@
         });
         
         exitButton.addEventListener('click', () => {
+            // Очищаем интервал мигания
+            clearInterval(blinkingInterval);
             resetGame();
         });
         
@@ -910,11 +963,11 @@
                 tipsContainer.textContent = "ТЕПЕРЬ ВЫ ДОВОЛЬНЫ?";
                 isReversed = true;
                 isCrazyMode = true;
-                attemptsLeft = 0; 
                 
                 // Начинаем с последнего уровня в режиме CYBERTECH
                 currentLevel = levels.length - 1;
-
+                attemptsLeft = 0; // В режиме CYBERTECH у нас 0 попыток, и они растут
+                
                 updateAllText();
                 
                 setTimeout(() => {
@@ -977,26 +1030,76 @@
         canvas.addEventListener('mousemove', (e) => {
             if (!isTracing || isGameOver) return;
 
+            // Временное отключение проверки трассировки для Уровня 5 (индекс 4)
+            // Чтобы включить проверку, удалите или закомментируйте следующий блок "if".
+            if (currentLevel !== 4) {
+                 const rect = canvas.getBoundingClientRect();
+                 const scale = canvas.width / rect.width;
+                 const pos = { x: (e.clientX - rect.left) * scale, y: (e.clientY - rect.top) * scale };
+
+                 const currentTolerance = levelTolerances[currentLevel];
+                 ctx.lineWidth = currentTolerance * 2;
+            
+                 if (!ctx.isPointInStroke(path, pos.x, pos.y)) {
+                     handleFailure('OFF TRACK');
+                     return;
+                 }
+                 playerProgress.push(pos);
+            } else {
+                 const rect = canvas.getBoundingClientRect();
+                 const scale = canvas.width / rect.width;
+                 const pos = { x: (e.clientX - rect.left) * scale, y: (e.clientY - rect.top) * scale };
+                 playerProgress.push(pos);
+            }
+            
             const rect = canvas.getBoundingClientRect();
             const scale = canvas.width / rect.width;
             const pos = { x: (e.clientX - rect.left) * scale, y: (e.clientY - rect.top) * scale };
-
-            const currentTolerance = levelTolerances[currentLevel];
-            ctx.lineWidth = currentTolerance * 2;
-            
-            if (!ctx.isPointInStroke(path, pos.x, pos.y)) {
-                handleFailure('OFF TRACK');
-                return;
-            }
-
-            playerProgress.push(pos);
 
             if (isInsideCircle(pos, traceEndNode, nodeRadius) && playerProgress.length > 50) {
                 isTracing = false;
                 isGameActive = false;
                 clearInterval(timerInterval);
+                
+                // Очищаем предыдущий интервал мигания, если он есть
+                clearInterval(blinkingInterval);
 
                 let bonusTime = 0;
+                // Проверяем, если это последний уровень
+                if (currentLevel === levels.length - 1) {
+                    
+                    if (perfectRun) {
+                        // Идеальное прохождение: чередуем текст
+                        let isAnalysisText = true;
+                        blinkingInterval = setInterval(() => {
+                            if (isAnalysisText) {
+                                completionMessage.textContent = isReversed ? reverseString("АНАЛИЗ ЗАВЕРШЁН") : "АНАЛИЗ ЗАВЕРШЁН";
+                            } else {
+                                completionMessage.textContent = isReversed ? reverseString("ДОСТУПНА ПРИВИЛЕГИЯ") : "ДОСТУПНА ПРИВИЛЕГИЯ";
+                            }
+                            isAnalysisText = !isAnalysisText;
+                        }, 1000); // Быстрое переключение
+                        completionMessage.classList.add('alternating-text');
+                    } else {
+                        // Обычное прохождение: просто мигает "АНАЛИЗ ЗАВЕРШЁН"
+                        completionMessage.textContent = isReversed ? reverseString("АНАЛИЗ ЗАВЕРШЁН") : "АНАЛИЗ ЗАВЕРШЁН";
+                        completionMessage.classList.remove('alternating-text');
+                        completionMessage.style.animation = 'blinker-standard 1s step-end infinite';
+                    }
+
+                    setTimeout(() => {
+                        completionMessageContainer.classList.remove('hidden');
+                        canvas.style.display = 'none';
+                        bgCanvas.style.display = 'none';
+                        startButton.classList.add('hidden');
+                        infoPanel.classList.add('hidden');
+                        timerAndAttempts.classList.add('hidden');
+                        canvasWrapper.classList.remove('active');
+                        bgCanvas.classList.remove('grid-visible');
+                    }, 500); // Небольшая задержка, чтобы избежать "двойных" сообщений
+                    return; // Выходим, чтобы не запускать логику следующего уровня
+                }
+
                 // Бонус за идеальное прохождение в обычном режиме
                 if (!isCrazyMode && attemptsLeft === 3) {
                      bonusTime = 3;
@@ -1011,12 +1114,6 @@
                     playSuccessSound();
                     showFeedback('ПРОЙДЕНО', 'success');
                 }
-
-                startNodeColor = '#FFFFFF';
-                endNodeColor = '#FFFFFF';
-                draw();
-                
-                stopBackgroundAnimation();
                 
                 // Изменяем логику прогресса уровня в зависимости от режима
                 if (isCrazyMode) {
@@ -1025,40 +1122,24 @@
                     currentLevel++;
                 }
 
-                // Проверяем условия победы
-                if ((isCrazyMode && currentLevel < 0) || (!isCrazyMode && currentLevel >= levels.length)) {
-                    setTimeout(() => {
-                        completionScreen.classList.remove('hidden');
-                        
-                        if (perfectRun) {
-                            privilegeMessage.classList.remove('hidden');
-                            privilegeMessage.textContent = isReversed ? reverseString("ВАМ ДОСТУПНА ПРИВИЛЕГИЯ") : "ВАМ ДОСТУПНА ПРИВИЛЕГИЯ";
-                        }
-                        
-                        canvas.style.display = 'none';
-                        bgCanvas.style.display = 'none';
-                        startButton.classList.add('hidden');
-                        infoPanel.classList.add('hidden');
-                        timerAndAttempts.classList.add('hidden');
-                        canvasWrapper.classList.remove('active');
-                        bgCanvas.classList.remove('grid-visible');
-                        
-                        // Возврат текста в нормальное состояние после победы
-                        resetGame();
-                    }, 2000);
-                } else {
-                    setTimeout(() => {
-                        loadLevel(currentLevel, bonusTime);
-                        resizeGame(); // Вызываем масштабирование при загрузке нового уровня
-                    }, 2000);
-                }
+                startNodeColor = '#FFFFFF';
+                endNodeColor = '#FFFFFF';
+                draw();
+                stopBackgroundAnimation();
+                
+                setTimeout(() => {
+                    loadLevel(currentLevel, bonusTime);
+                    resizeGame(); // Вызываем масштабирование при загрузке нового уровня
+                }, 2000);
             }
             
             draw();
         });
-        
-        loadLevel(currentLevel);
 
+        // Запуск игры сразу с 1-го уровня (индекс 0)
+        currentLevel = 0;
+        attemptsLeft = 3;
+        loadLevel(currentLevel);
     </script>
 </body>
 </html>
